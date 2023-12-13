@@ -121,5 +121,6 @@ pin 28 - ICSPDAT
 pin 1 - _MLCR/VPP
 ```
 
-```Controlling leds from pic's PORTC...bit 0 is for general backlight, subsequent (in an order i did not wrote down and don't remember) are to independantly control shift, green, people and red backlights.And, of course, i could half-power each of them in PWM fashion
+```
+Controlling leds from pic's PORTC...bit 0 is for general backlight, subsequent (in an order i did not wrote down and don't remember) are to independantly control shift, green, people and red backlights.And, of course, i could half-power each of them in PWM fashion
 ```
