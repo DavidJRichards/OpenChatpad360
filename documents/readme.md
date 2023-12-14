@@ -4,6 +4,19 @@ This version forked from https://github.com/Neo-Desktop/OpenChatpad360
 
 Note: on my unit baudrate appears to be 5340 bps ( not 4800 as expected )
 
+## software update
+
+Added amended source to build using sdcc, needed library function replacements included in source body.
+
+Note: CPU clock frequency needs testing and tuning.
+
+Note: not yet tested on microcontroller!
+
+Initial verion, builds clean.
+
+[build files](../build/)
+
+
 ## development blog
 
 [Open Keyboard Project](https://forums.ps2dev.org/viewtopic.php?t=9804)
@@ -31,7 +44,9 @@ Holding [people] button (that at this point should be called [user settings]) an
 3) [user settings]+[s] put keyboard into serial mode
 4) [user settings]+[a] put keyboard into scan/advanced mode (still no ps2 mode...not of PSP interest anyway) scan codes are sent as previously stated (1-47, counting buttons from top to bottom, from left to right) bit 6 set for "pressed", bit 7 reserved for future use (bidirectional protocol)
 5) [user settings]+[0-9] set backlight duration (0 = no light, 1 = on 2sec...9 = always on)
-6) other settings yet coded but not interfaced
+6) [user settings]+[green]+[5] set baud 4800
+6) [user settings]+[green]+[6] set baud 9600
+n) other settings yet coded but not interfaced
 ```
 
 ## minipro commands
@@ -95,6 +110,9 @@ user_id2 = 0x3fff
 user_id3 = 0x3fff
 ```
 
+## Pictures
+
+[Disassembly photos](https://web.archive.org/web/20220818021236/http://nuxx.net/gallery/v/acquired_stuff/xbox_360_chatpad/?g2_page=2)
 
 [Pic16f883 datasheet](41291b.pdf)
 
@@ -121,6 +139,6 @@ pin 28 - ICSPDAT
 pin 1 - _MLCR/VPP
 ```
 
-```
 Controlling leds from pic's PORTC...bit 0 is for general backlight, subsequent (in an order i did not wrote down and don't remember) are to independantly control shift, green, people and red backlights.And, of course, i could half-power each of them in PWM fashion
-```
+
+

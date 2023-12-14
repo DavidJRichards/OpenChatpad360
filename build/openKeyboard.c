@@ -7,6 +7,14 @@
 // cable knots while reversing and testing.
 // Thanks as well to all people who demonstrated interest in this project!
 
+#define _XTAL_FREQ 10000000
+#define TMR2PRESCALE 4
+
+#include <pic14regs.h>
+#include <pic16f883.h>
+//#include <pic16f887.h>
+#include <stddef.h>
+
 #define CONFIG_BAUDRATE 1
 #define CONFIG_SENDMODE 2
 #define CONFIG_LIGHTMODE 3
@@ -102,8 +110,8 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
   unsigned char alts [] = {0, 1, 2, 2, 3, 3, 3, 3};
   unsigned char alt;
 
-  void (*send)() = 0;
-  void (*lightHandler)() = 0;
+  void (*send)(void) = NULL;
+  void (*lightHandler)(void) = NULL;
 
   unsigned char baudrate = 0;
   unsigned char sendMode = 0;
@@ -111,20 +119,249 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
   unsigned char lightStrenght = 0;
 
   unsigned char pwmRunning = 0;
-  
-  void enterPowerSave(){
-    PORTA = 0;
-    INTCON.RBIE = 1; // enables PORTB on-change interrupt
-    asm{
-        sleep;
+
+//-----------------------------------------------------------------------------
+
+long freq;
+
+int PWM_Max_Duty(void)
+{
+  return(_XTAL_FREQ/(freq*TMR2PRESCALE));
+}
+
+void PWM1_Init(long fre)
+{
+  PR2 = (_XTAL_FREQ/(fre*4*TMR2PRESCALE)) - 1;
+  freq = fre;
+}
+
+void PWM2_Init(long fre)
+{
+  PR2 = (_XTAL_FREQ/(fre*4*TMR2PRESCALE)) - 1;
+  freq = fre;
+}
+
+void PWM1_Change_Duty(unsigned int duty)
+{
+#if 1
+  CCPR1L = duty;
+#else
+  if(duty<1024)
+  {
+#warning     duty = ((float)duty/1023)*PWM_Max_Duty();
+    CCP1X = duty & 2;
+    CCP1Y = duty & 1;
+    CCPR1L = duty>>2;
+  }
+#endif
+}
+
+void PWM2_Change_Duty(unsigned int duty)
+{
+#if 1
+  CCPR2L = duty;
+#else
+  if(duty<1024)
+  {
+#warning    duty = ((float)duty/1023)*PWM_Max_Duty();
+    CCP2X = duty & 2;
+    CCP2Y = duty & 1;
+    CCPR2L = duty>>2;
+  }
+#endif
+}
+
+void PWM1_Start(void)
+{
+  CCP1M3 = 1;
+  CCP1M2 = 1;
+  #if TMR2PRESCALAR == 1
+    T2CKPS0 = 0;
+    T2CKPS1 = 0;
+  #elif TMR2PRESCALAR == 4
+    T2CKPS0 = 1;
+    T2CKPS1 = 0;
+  #elif TMR2PRESCALAR == 16
+    T2CKPS0 = 1;
+    T2CKPS1 = 1;
+  #endif
+  TMR2ON = 1;
+  TRISC2 = 0;
+}
+
+void PWM1_Stop(void)
+{
+  CCP1M3 = 0;
+  CCP1M2 = 0;
+}
+
+void PWM2_Start(void)
+{
+  CCP2M3 = 1;
+  CCP2M2 = 1;
+  #if TMR2PRESCALE == 1
+    T2CKPS0 = 0;
+    T2CKPS1 = 0;
+  #elif TMR2PRESCALE == 4
+    T2CKPS0 = 1;
+    T2CKPS1 = 0;
+  #elif TMR2PRESCALE == 16
+    T2CKPS0 = 1;
+    T2CKPS1 = 1;
+  #endif
+    TMR2ON = 1;
+    TRISC1 = 0;
+}
+
+void PWM2_Stop(void)
+{
+  CCP2M3 = 0;
+  CCP2M2 = 0;
+}
+
+//-----------------------------------------------------------------------------
+#define    ENABLE_EEPROM_WriteNBytes   0
+#define    ENABLE_EEPROM_ReadNBytes    0
+#define    ENABLE_EEPROM_WriteString   1
+#define    ENABLE_EEPROM_ReadString    1
+#define    ENABLE_EEPROM_Erase         0
+
+typedef unsigned int uint16_t;
+typedef unsigned char uint8_t;
+
+#if 1
+//uint8_t EEPROM_ReadByte(uint16_t v_eepromAddress_u16)
+uint8_t EEprom_read(uint16_t v_eepromAddress_u16)
+{
+    while(RD || WR);           // check the WR&RD bit to see if a RD/WR is in progress
+    EEADR=v_eepromAddress_u16; // Write the address to EEADR.
+                               // Make sure that the address is not larger than the memory size 
+    RD = 1;                    // Set the WR bit to trigger the eeprom read operation.
+    return(EEDATA);            // Return the data read form eeprom.
+}
+#endif
+
+//void EEPROM_WriteByte(uint16_t v_eepromAddress_u16, uint8_t v_eepromData_u8)
+void EEprom_write(uint16_t v_eepromAddress_u16, uint8_t v_eepromData_u8)
+{
+#if 0
+    eeprom_write(v_eepromAddress_u16,v_eepromData_u8);
+#else
+    unsigned char gie_Status;
+    
+    while(WR);            // check the WR bit to see if a WR is in progress
+    EEADR=v_eepromAddress_u16;  // Write the address to EEADR.
+    EEDATA=v_eepromData_u8;    // load the 8-bit data value to be written in the EEDATA register.
+    WREN=1;               // Set the WREN bit to enable eeprom operation.
+    gie_Status = GIE;     // Store the Interrupts enable/disable state
+    GIE = 0;              // Disable the interrupts
+    EECON2=0x55;          // Execute the special instruction sequence
+    EECON2=0xaa;          // Refer the datasheet for more info
+    WR=1;                 // Set the WR bit to trigger the eeprom write operation.
+    GIE = gie_Status;     // Restore the interrupts
+    WREN=0;               // Disable the EepromWrite
+#endif
+}
+
+
+//-----------------------------------------------------------------------------
+#define C_CountForOneMsDelay_U16 300u
+//void DELAY_us(uint16_t us_count) 
+void Delay_us(uint16_t us_count) 
+{
+    while (us_count != 0) 
+    {
+        us_count--;
     }
-  }
+}
 
-  void exitPowerSave(){
-     INTCON.RBIE = 0; // disables PORTB on-change interrupt
-  }
+//void DELAY_ms(uint16_t ms_count) 
+void Delay_ms(uint16_t ms_count) 
+{
+    while (ms_count != 0) 
+    {
+        Delay_us(C_CountForOneMsDelay_U16); //DELAY_us is called to generate 1ms delay
+        ms_count--;
+    }
+}
 
-  void setupUsart(unsigned char br){
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+
+
+
+//char UART_Init(const long int baudrate)
+char USART_Init(const long int baudrate)
+{
+	unsigned int x;
+	x = (_XTAL_FREQ - baudrate*64)/(baudrate*64);
+	if(x>255)
+	{
+		x = (_XTAL_FREQ - baudrate*16)/(baudrate*16);
+		BRGH = 1;
+	}
+	if(x<256)
+	{
+	  SPBRG = x;
+	  SYNC = 0;
+	  SPEN = 1;
+          TRISC7 = 1;
+          TRISC6 = 1;
+          CREN = 1;
+          TXEN = 1;
+	  return 1;
+	}
+	return 0;
+}
+
+char UART_TX_Empty(void)
+{
+  return TRMT;
+}
+
+char UART_Data_Ready(void)
+{
+   return RCIF;
+}
+char UART_Read(void)
+{
+ 
+  while(!RCIF);
+  return RCREG;
+}
+
+void UART_Read_Text(char *Output, unsigned int length)
+{
+	unsigned int i;
+	for(int i=0;i<length;i++)
+		Output[i] = UART_Read();
+	i=i;// suppress compiler warning
+}
+
+//void UART_Write(char data)
+void USART_Write(char data)
+{
+  while(!TRMT);
+  TXREG = data;
+}
+
+//-----------------------------------------------------------------------------
+  
+void enterPowerSave(void){
+    PORTA = 0;
+    RBIE = 1; // enables PORTB on-change interrupt
+    RBIE = 1; // enables PORTB on-change interrupt
+    __asm 
+	sleep 
+    __endasm;
+}
+
+void exitPowerSave(void){
+     RBIE = 0; // disables PORTB on-change interrupt
+}
+
+void setupUsart(unsigned char br){
     switch(br){  // done so, because you can't call USART_Init(variable); but only USART_Init(literal);
        case BAUDRATE_300:    USART_Init(300);
           break;
@@ -149,9 +386,9 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
                 USART_Init(4800);
     }
     baudrate = br;
-  }
+}
 
-  void turnBacklightOn(){
+void turnBacklightOn(void){
        timer = lightFadeOffTime;
        if (!pwmRunning) {
           PWM1_Start();
@@ -160,14 +397,14 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
        }
        PWM1_Change_Duty(lightStrenght);
        PWM2_Change_Duty(lightStrenght);
-  }
+}
 
-  void nop(){
+void nop(void){
 
-  }
+}
 
-  void lightFade(){
-       unsigned char s;
+void lightFade(void){
+       ///unsigned char s;
        if (newlyPressd) {
           turnBacklightOn();
           return;
@@ -187,9 +424,9 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
           PWM2_Change_Duty(~((unsigned char)timer));
        }
 
-  }
+}
 
-  void setupLightMode(unsigned char lm){
+void setupLightMode(unsigned char lm){
 
     if (pwmRunning){
        PWM1_Stop();
@@ -233,9 +470,9 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
       
       pwmRunning = 1;
     }
-  }
+}
 
-  void doScan(){
+void doScan(void){
     unsigned char sc = 0;
 
     newlyPressd = 0;
@@ -256,10 +493,10 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
        
        sc++;
     }
-  }
+}
 
   
-  void serialSend(){
+void serialSend(void){
     unsigned char idx = 0;
     unsigned char sc = 0;
 
@@ -271,9 +508,9 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
       sc++;
     }
     alt = alts[data[2]&1|((data[1]&1)<<1)|((data[0]&64)>>4)]; // next scan can use alt retrieved here
-  }
+}
   
-  void scanSend(){
+void scanSend(void){
     unsigned char idx = 0;
     unsigned char sc = 0;
     unsigned char bs = 0;
@@ -282,16 +519,16 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
       somethingChanged = data[sc] ^ oldData[sc];
       bs = 0;
       for (BMask=1; BMask<128; BMask<<=1){
-        if (someThingChanged & BMask)
+        if (somethingChanged & BMask)
            USART_Write(scanMap[idx] | (((data[sc]&BMask)>>bs)<<6)); // | 64 if pressed
         bs++;
         idx++;
       }
       sc++;
     }
-  }
+}
   
-  void ps2Send(){
+void ps2Send(void){
        // not implemented yet
   }
   
@@ -313,9 +550,9 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
                                EEprom_write(CONFIG_SENDMODE, SENDMODE_SERIAL);
                                sendMode = SENDMODE_SERIAL;
        }
-  }
+}
   
-  void config(){
+void config(void){
        timer = lightFadeOffTime;
 
        if ((data[1]&4)&&(lightStrenght<0xff)) {   // <
@@ -341,7 +578,7 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
                lightFadeOffTime = 2<<8;
 //          }
        }
-
+#ifdef USE_SWITCH
        if (justPressed[5]&2){ // 2
           if (data[1]&1)
              ;//setupUsart(BAUDRATE_300);     //all setupUsart commented out are to save code words space...otherwise i'm running into demo limit
@@ -392,7 +629,7 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
              ;//setupUsart(BAUDRATE_19200);
           else {
                setupLightMode(LIGHTMODE_FADE);
-               lightFadeOffTime = 128<<8;
+               lightFadeOffTime = 128L<<8;
           }
        }
 
@@ -401,7 +638,7 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
              ;//setupUsart(BAUDRATE_38400);
           else {
                setupLightMode(LIGHTMODE_FADE);
-               lightFadeOffTime = 255<<8;
+               lightFadeOffTime = 255L<<8;
           }
        }
 
@@ -426,31 +663,31 @@ const char serialMap[4][49] = { // CHARACTER MAPPING MATRIX for "pure serial mod
        if (justPressed[3]&2){ // S
           setupSendMode(SENDMODE_SERIAL);
        }
+#endif
+       Delay_ms(5);
 
-       Delay_5ms();
-
-  }
+}
   
-  void saveConfig(){
-       EEprom_write(CONFIG_BAUDRATE, baudrate);
-       EEprom_write(CONFIG_SENDMODE, sendMode);
-       EEprom_write(CONFIG_LIGHTMODE, lightMode);
-       EEprom_write(CONFIG_LIGHTSTRENGTH, lightStrenght);
-       EEprom_write(CONFIG_LIGHTFADEOFFTIME, lightFadeOffTime>>8);
-  }
+void saveConfig(void){
+	EEprom_write(CONFIG_BAUDRATE, baudrate);
+	EEprom_write(CONFIG_SENDMODE, sendMode);
+	EEprom_write(CONFIG_LIGHTMODE, lightMode);
+	EEprom_write(CONFIG_LIGHTSTRENGTH, lightStrenght);
+	EEprom_write(CONFIG_LIGHTFADEOFFTIME, lightFadeOffTime>>8);
+}
   
-  void interrupt() {
-     if (INTCON.RBIF) { // SOMETHING CHANGED ON PORTB...
+void interrupt(void) {
+     if (RBIF) { // SOMETHING CHANGED ON PORTB...
         exitPowerSave(); // just wakeup and so some scanning...
-        INTCON.RBIF = 0; // clear intr flag
+        RBIF = 0; // clear intr flag
      }
 
-//     if (PIR1.RCIF) { // USART RECEIVE BUFFER () FULL...
+//     if (PIR1.RCIF) { // USART RECEIVE BUFFER (void) FULL...
 //
 //     }
-  }
+}
 
-void main() {
+void main(void) {
 
   OSCCON = 0x67;                    // 01100111 - 0110 stands for 4Mhz internal clock
 
@@ -471,14 +708,14 @@ void main() {
                                     
   //WPUB = 127; // weak pull-ups enabled on PORTB 0-6 // AAARGH!! this caused random Light-On
 
-  INTCON.RBIE = 0; // disables PORTB on-change interrupt
-  INTCON.RBIF = 0; // clear PORTB mismatch values
+  RBIE = 0; // disables PORTB on-change interrupt
+  RBIF = 0; // clear PORTB mismatch values
 
   IOCB = 127; // pin 0-6 of PORTB configured to raise interrupt when changed
   
   PIE1 = 32; // RCIE = 1; enables EUSART on-receive interrupt
     
-  INTCON.GIE = 1; // Global Interrupt Enable/disable
+  GIE = 1; // Global Interrupt Enable/disable
 
    // SEND MODE ------------------
   Delay_ms(20);    // required for eeprom_read to work correctly
@@ -498,7 +735,7 @@ void main() {
 
   Delay_ms(20);    // required for eeprom_read to work correctly
   lightMode = EEprom_read(CONFIG_LIGHTMODE);
-  setUpLightMode(lightMode);
+  setupLightMode(lightMode);
 
   do {
 
@@ -511,7 +748,7 @@ void main() {
        send();
     }
     lightHandler();
-    Delay_80us(); // without this delay, pic hangs on sleep...
+    Delay_us(80); // without this delay, pic hangs on sleep...
   } while (1);                   // endless loop
 
 }
