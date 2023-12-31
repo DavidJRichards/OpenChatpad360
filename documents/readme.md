@@ -2,7 +2,11 @@
 
 This version forked from https://github.com/Neo-Desktop/OpenChatpad360
 
+Calibration word value @ 2009h = 0x3FFF
+
 Note: on my unit baudrate appears to be 5340 bps ( not 4800 as expected )
+
+Update of calibration word from 0x3FFF to 0x2573 gives correct default baudtrate setting of 4800 bps - best value found by experiment.
 
 ## software update
 
@@ -16,6 +20,11 @@ Initial verion, builds clean.
 
 [build files](../build/)
 
+## Microchip datasheets
+
+[Pic16f883 datasheet](41291b.pdf)
+
+[Programming spec](41287D.pdf)
 
 ## development blog
 
@@ -113,8 +122,6 @@ user_id3 = 0x3fff
 ## Pictures
 
 [Disassembly photos](https://web.archive.org/web/20220818021236/http://nuxx.net/gallery/v/acquired_stuff/xbox_360_chatpad/?g2_page=2)
-
-[Pic16f883 datasheet](41291b.pdf)
 
 ![Alt text](../images/jean_board.webp)
 

@@ -13,7 +13,7 @@ $(SRC:.c=.o): $(SRC)
 	$(CC) --use-non-free -c -m$(FAMILY) -p$(PROC) $^
 
 $(OBJ:.o=.hex): $(OBJ)
-	$(LINK) -m --mplink-compatible  -I/usr/local/bin/../share/sdcc/lib/pic14 -I/usr/local/share/sdcc/lib/pic14 -I/usr/local/bin/../share/sdcc/non-free/lib/pic14 -I/usr/local/share/sdcc/non-free/lib/pic14  -I/usr/local/bin/../share/sdcc/lib/pic14 -I/usr/local/share/sdcc/lib/pic14 -I/usr/local/bin/../share/sdcc/non-free/lib/pic14 -I/usr/local/share/sdcc/non-free/lib/pic14   -w -r -o $^_ $^   libsdcc.lib pic16f887.lib 	
+	$(LINK) -C -m --mplink-compatible  -I/usr/local/bin/../share/sdcc/lib/pic14 -I/usr/local/share/sdcc/lib/pic14 -I/usr/local/bin/../share/sdcc/non-free/lib/pic14 -I/usr/local/share/sdcc/non-free/lib/pic14  -I/usr/local/bin/../share/sdcc/lib/pic14 -I/usr/local/share/sdcc/lib/pic14 -I/usr/local/bin/../share/sdcc/non-free/lib/pic14 -I/usr/local/share/sdcc/non-free/lib/pic14   -w -r -o $^_ $^   libsdcc.lib pic16f887.lib 	
 
 
 

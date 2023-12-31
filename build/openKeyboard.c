@@ -12,7 +12,6 @@
 
 #include <pic14regs.h>
 #include <pic16f883.h>
-//#include <pic16f887.h>
 #include <stddef.h>
 
 #define CONFIG_BAUDRATE 1
